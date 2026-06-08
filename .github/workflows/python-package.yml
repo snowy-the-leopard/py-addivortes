@@ -49,6 +49,7 @@ jobs:
       - name: Test wheel install
         run: |
           python -m pip install dist/addivortes-*.whl
+          cd /tmp
           python - <<'PY'
           from addivortes import AddiVortesRegressor
           print(AddiVortesRegressor)
@@ -57,7 +58,8 @@ jobs:
       - name: Test source distribution install
         run: |
           python -m pip uninstall -y addivortes
-          python -m pip install dist/addivortes-*.tar.gz
+          python -m pip install "$GITHUB_WORKSPACE"/dist/addivortes-*.tar.gz
+          cd /tmp
           python - <<'PY'
           from addivortes import AddiVortesRegressor
           print(AddiVortesRegressor)
