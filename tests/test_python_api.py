@@ -1,3 +1,5 @@
+import importlib
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -9,6 +11,11 @@ from conftest import fast_model, regression_data
 
 def test_import_aliases_are_available():
     assert AddiVortes is AddiVortesRegressor
+
+
+def test_compiled_core_extension_is_importable():
+    core = importlib.import_module("addivortes._core")
+    assert callable(core.run_mcmc)
 
 
 def test_numeric_fit_predict_response_and_quantiles():
