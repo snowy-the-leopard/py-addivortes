@@ -62,6 +62,26 @@ Fit the model and return predictions for the training covariates.
 
 Return the coefficient of determination on test data.
 
+#### `plot(x_train, y_train, *, sigma_trace=None, which=(1, 2, 3), ask=False, axes=None, show=False, **kwargs)`
+
+Create diagnostic plots for a fitted model. Plotting uses matplotlib, which can
+be installed with:
+
+```bash
+python -m pip install "addivortes[plot]"
+```
+
+The `which` argument selects diagnostics:
+
+- `1`: residuals vs fitted values with a smoothed trend line,
+- `2`: posterior sigma trace,
+- `3`: average tessellation complexity trace,
+- `4`: predicted vs observed values with 95% credible intervals.
+
+When `sigma_trace` is omitted, the method uses the fitted posterior variance
+samples and plots their square roots as sigma values. The method returns the
+matplotlib axes used for the requested plots.
+
 #### `summary()`
 
 Return a dictionary with fitted-model summary information, including:
@@ -93,4 +113,12 @@ After `fit`, common fitted attributes include:
 
 ```python
 from addivortes import AddiVortes
+```
+
+The package also exposes a functional plotting wrapper:
+
+```python
+from addivortes import plot
+
+plot(model, X, y, which=(1, 4))
 ```

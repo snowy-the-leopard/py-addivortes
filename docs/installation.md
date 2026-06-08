@@ -34,6 +34,14 @@ cd py-addivortes
 python -m pip install -e ".[dev]"
 ```
 
+## Optional plotting support
+
+Diagnostic plotting requires matplotlib:
+
+```bash
+python -m pip install "addivortes[plot]"
+```
+
 ## Build requirements
 
 The package builds a C++20 extension with pybind11. Source installs require:

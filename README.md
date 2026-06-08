@@ -15,6 +15,8 @@ encoding.
   sklearn-style parameter access.
 - Bayesian posterior samples for mean predictions and credible intervals.
 - Prediction intervals that include posterior error variance.
+- Diagnostic plotting for residuals, sigma traces, tessellation complexity, and
+  predicted-vs-observed checks.
 - Numeric and categorical covariate preprocessing.
 - C++20 backend for the MCMC sampler and nearest-cell assignment.
 
@@ -60,6 +62,12 @@ model.fit(X, y)
 
 predictions = model.predict(X[:5])
 intervals = model.predict(X[:5], kind="quantile", quantiles=(0.025, 0.975))
+```
+
+Install `addivortes[plot]` to enable matplotlib diagnostics:
+
+```python
+model.plot(X, y, which=(1, 2, 3, 4), show=True)
 ```
 
 ## Data frames and categorical covariates
