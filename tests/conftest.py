@@ -4,7 +4,9 @@ import sys
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path[:] = [entry for entry in sys.path if Path(entry or ".").resolve() != REPO_ROOT]
+for entry in tuple(sys.path):
+    if Path(entry or ".").resolve() == REPO_ROOT:
+        sys.path.remove(entry)
 
 from addivortes import AddiVortesRegressor
 
