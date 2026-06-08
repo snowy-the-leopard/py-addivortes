@@ -43,6 +43,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+plot = [
+  "matplotlib"
+]
 test = [
   "pytest>=8"
 ]
@@ -54,6 +57,7 @@ dev = [
   "build>=1.2",
   "twine>=5",
   "pytest>=8",
+  "matplotlib",
   "mkdocs>=1.6,<2",
   "mkdocs-material>=9.5"
 ]

@@ -72,3 +72,15 @@ summary = model.summary()
 print(summary["posterior_samples"])
 print(summary["in_sample_rmse"])
 ```
+
+## Diagnostic plots
+
+After installing the optional plotting dependency with
+`python -m pip install "addivortes[plot]"`, draw diagnostics from a fitted model:
+
+```python
+model.plot(X, y, which=(1, 2, 3, 4), show=True)
+```
+
+The diagnostics include residuals, posterior sigma trace, tessellation
+complexity, and predicted-vs-observed values with credible intervals.

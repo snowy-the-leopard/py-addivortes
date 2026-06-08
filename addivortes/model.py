@@ -274,6 +274,59 @@ class AddiVortesRegressor:
         ss_tot = float(np.sum((y_arr - np.mean(y_arr)) ** 2))
         return 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
 
+    def plot(
+        self,
+        x_train,
+        y_train,
+        *,
+        sigma_trace=None,
+        which=(1, 2, 3),
+        ask: bool = False,
+        axes=None,
+        show: bool = False,
+        **kwargs,
+    ):
+        """Create diagnostic plots for a fitted AddiVortes model.
+
+        Parameters
+        ----------
+        x_train, y_train
+            Training covariates and responses used for fitted-value diagnostics.
+        sigma_trace
+            Optional standard-deviation trace. When omitted, the stored
+            posterior variance samples are converted to standard deviations.
+        which
+            Plot identifiers to draw: 1 = residuals, 2 = sigma trace,
+            3 = tessellation complexity, 4 = predicted vs observed.
+        ask
+            If true, wait for Enter before drawing each plot when multiple
+            diagnostics are requested.
+        axes
+            Optional matplotlib axes to draw into.
+        show
+            If true, call ``matplotlib.pyplot.show()`` before returning.
+        **kwargs
+            Additional keyword arguments passed to the primary matplotlib
+            plotting calls.
+
+        Returns
+        -------
+        list
+            The matplotlib axes used for the requested plots.
+        """
+
+        return plot(
+            self,
+            x_train,
+            y_train,
+            sigma_trace=sigma_trace,
+            which=which,
+            ask=ask,
+            axes=axes,
+            show=show,
+            **kwargs,
+        )
+
     def summary(self) -> dict[str, Any]:
         """Return a dictionary of fitted model summary information."""
 
@@ -442,6 +495,299 @@ def _match_choice(value: str, choices: set[str], name: str) -> str:
     if normalized not in choices:
         raise ValueError(f"{name} must be one of {sorted(choices)}.")
     return normalized
+
+
+def plot(
+    model: AddiVortesRegressor,
+    x_train,
+    y_train,
+    *,
+    sigma_trace=None,
+    which=(1, 2, 3),
+    ask: bool = False,
+    axes=None,
+    show: bool = False,
+    **kwargs,
+):
+    """Create diagnostic plots for a fitted :class:`AddiVortesRegressor`.
+
+    This is a functional wrapper around :meth:`AddiVortesRegressor.plot`.
+    """
+
+    if not isinstance(model, AddiVortesRegressor):
+        raise TypeError("model must be an AddiVortesRegressor instance.")
+
+    model._check_is_fitted()
+    y_arr = _validate_plot_training_data(x_train, y_train)
+    which_values = _normalize_plot_selection(which)
+    if len(model.posterior_.tessellations) == 0:
+        raise RuntimeError("The fitted model contains no posterior samples.")
+
+    sigma_values = _sigma_trace(model, sigma_trace) if 2 in which_values else None
+    plt = _matplotlib_pyplot()
+    axes_list = _plot_axes(plt, axes, len(which_values))
+
+    needs_predictions = any(value in {1, 4} for value in which_values)
+    if needs_predictions:
+        y_pred_mean = model.predict(x_train)
+        residuals = y_arr - y_pred_mean
+    else:
+        y_pred_mean = None
+        residuals = None
+
+    if 3 in which_values:
+        tess_complexity = _tessellation_complexity(model.posterior_.tessellations)
+    else:
+        tess_complexity = None
+
+    for axis, plot_id in zip(axes_list, which_values, strict=True):
+        if ask and len(which_values) > 1:
+            input(f"Press [Enter] to see {_PLOT_NAMES[plot_id]}: ")
+
+        if plot_id == 1:
+            _plot_residuals(axis, y_pred_mean, residuals, model.in_sample_rmse_, kwargs)
+        elif plot_id == 2:
+            _plot_sigma_trace(axis, sigma_values, kwargs)
+        elif plot_id == 3:
+            _plot_tessellation_complexity(axis, tess_complexity, kwargs)
+        elif plot_id == 4:
+            quantiles = model.predict(x_train, kind="quantile", quantiles=(0.025, 0.975))
+            _plot_predicted_observed(axis, y_arr, y_pred_mean, residuals, quantiles, kwargs)
+
+    figure = axes_list[0].figure if axes_list else None
+    if figure is not None and hasattr(figure, "tight_layout"):
+        figure.tight_layout()
+    if show:
+        plt.show()
+
+    return axes_list
+
+
+_PLOT_NAMES = {
+    1: "residuals plot",
+    2: "sigma trace plot",
+    3: "tessellation complexity trace",
+    4: "predicted vs observed plot",
+}
+
+
+def _validate_plot_training_data(x_train, y_train) -> np.ndarray:
+    y_arr = np.asarray(y_train, dtype=float)
+    if y_arr.ndim != 1:
+        raise ValueError("y_train must be a one-dimensional numeric array.")
+    if not np.all(np.isfinite(y_arr)):
+        raise ValueError("y_train contains missing or non-finite values.")
+
+    n_rows = _num_observations(x_train)
+    if n_rows != y_arr.size:
+        raise ValueError("x_train and y_train must contain the same number of observations.")
+    return y_arr
+
+
+def _num_observations(x_train) -> int:
+    shape = getattr(x_train, "shape", None)
+    if shape is not None and len(shape) > 0:
+        return int(shape[0])
+
+    arr = np.asarray(x_train)
+    if arr.ndim == 0:
+        raise ValueError("x_train must be a one- or two-dimensional array-like object.")
+    return int(arr.shape[0])
+
+
+def _normalize_plot_selection(which) -> tuple[int, ...]:
+    try:
+        requested = [int(value) for value in np.atleast_1d(which)]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("which must contain integer plot identifiers between 1 and 4.") from exc
+
+    selected: list[int] = []
+    for value in requested:
+        if value in {1, 2, 3, 4} and value not in selected:
+            selected.append(value)
+
+    if not selected:
+        raise ValueError("which must contain at least one value between 1 and 4.")
+    return tuple(selected)
+
+
+def _matplotlib_pyplot():
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as exc:  # pragma: no cover - exercised when matplotlib is absent
+        raise ImportError(
+            "AddiVortesRegressor.plot requires matplotlib. Install it with "
+            "`pip install addivortes[plot]` or `pip install matplotlib`."
+        ) from exc
+    return plt
+
+
+def _plot_axes(plt, axes, n_plots: int) -> list:
+    if axes is not None:
+        axes_list = list(np.asarray(axes, dtype=object).ravel())
+        if len(axes_list) < n_plots:
+            raise ValueError("axes must provide at least one matplotlib axis for each requested plot.")
+        return axes_list[:n_plots]
+
+    if n_plots == 1:
+        rows, cols = 1, 1
+    elif n_plots == 2:
+        rows, cols = 1, 2
+    else:
+        rows, cols = 2, 2
+
+    _, axes_array = plt.subplots(rows, cols, squeeze=False)
+    axes_list = list(np.asarray(axes_array, dtype=object).ravel())
+    for unused_axis in axes_list[n_plots:]:
+        if hasattr(unused_axis, "set_visible"):
+            unused_axis.set_visible(False)
+    return axes_list[:n_plots]
+
+
+def _tessellation_complexity(tessellations: list[list[np.ndarray]]) -> np.ndarray:
+    return np.asarray(
+        [
+            float(np.mean([np.asarray(tess).shape[0] for tess in sample]))
+            if len(sample) > 0
+            else float("nan")
+            for sample in tessellations
+        ],
+        dtype=float,
+    )
+
+
+def _sigma_trace(model: AddiVortesRegressor, sigma_trace) -> np.ndarray:
+    if sigma_trace is None:
+        sigma_values = np.sqrt(np.asarray(model.posterior_.sigma, dtype=float))
+    else:
+        sigma_values = np.asarray(sigma_trace, dtype=float)
+
+    if sigma_values.ndim != 1 or sigma_values.size == 0:
+        raise ValueError("sigma_trace must be a non-empty one-dimensional numeric array.")
+    if not np.all(np.isfinite(sigma_values)):
+        raise ValueError("sigma_trace contains missing or non-finite values.")
+    if sigma_values.size != len(model.posterior_.tessellations):
+        warnings.warn(
+            "Length of sigma_trace does not match the number of posterior samples.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    return sigma_values
+
+
+def _plot_residuals(axis, y_pred_mean, residuals, rmse: float, kwargs: dict[str, Any]) -> None:
+    scatter_kwargs = {"s": 30, "color": "darkblue", "alpha": 0.8}
+    scatter_kwargs.update(kwargs)
+    axis.scatter(y_pred_mean, residuals, **scatter_kwargs)
+    axis.axhline(0.0, color="red", linestyle="--", linewidth=2)
+    if y_pred_mean.size > 3:
+        smooth_x, smooth_y = _smooth_line(y_pred_mean, residuals)
+        axis.plot(smooth_x, smooth_y, color="orange", linewidth=2)
+    axis.text(0.98, 0.95, f"RMSE = {rmse:.4f}", transform=axis.transAxes, ha="right", va="top")
+    axis.set(xlabel="Fitted Values", ylabel="Residuals", title="Residuals vs Fitted")
+
+
+def _plot_sigma_trace(axis, sigma_values: np.ndarray, kwargs: dict[str, Any]) -> None:
+    line_kwargs = {"color": "darkgreen", "linewidth": 1.5}
+    line_kwargs.update(kwargs)
+    iterations = np.arange(1, sigma_values.size + 1)
+    axis.plot(iterations, sigma_values, **line_kwargs)
+    axis.axhline(float(np.mean(sigma_values)), color="red", linestyle="--")
+    sigma_sd = float(np.std(sigma_values, ddof=1)) if sigma_values.size > 1 else 0.0
+    axis.text(
+        0.98,
+        0.95,
+        f"Mean: {np.mean(sigma_values):.4f}\nSD: {sigma_sd:.4f}",
+        transform=axis.transAxes,
+        ha="right",
+        va="top",
+    )
+    axis.set(xlabel="MCMC Iteration", ylabel="sigma", title="MCMC Trace: Error Standard Deviation")
+
+
+def _plot_tessellation_complexity(axis, tess_complexity: np.ndarray, kwargs: dict[str, Any]) -> None:
+    line_kwargs = {"color": "purple", "linewidth": 1.5}
+    line_kwargs.update(kwargs)
+    iterations = np.arange(1, tess_complexity.size + 1)
+    axis.plot(iterations, tess_complexity, **line_kwargs)
+    axis.axhline(float(np.mean(tess_complexity)), color="red", linestyle="--")
+    complexity_range = np.nanmin(tess_complexity), np.nanmax(tess_complexity)
+    axis.text(
+        0.98,
+        0.95,
+        f"Mean: {np.mean(tess_complexity):.1f}\nRange: [{complexity_range[0]:.1f}, {complexity_range[1]:.1f}]",
+        transform=axis.transAxes,
+        ha="right",
+        va="top",
+    )
+    axis.set(
+        xlabel="MCMC Iteration",
+        ylabel="Average Number of Tessellation Centers",
+        title="MCMC Trace: Tessellation Complexity",
+    )
+
+
+def _plot_predicted_observed(
+    axis,
+    y_train: np.ndarray,
+    y_pred_mean: np.ndarray,
+    residuals: np.ndarray,
+    quantiles: np.ndarray,
+    kwargs: dict[str, Any],
+) -> None:
+    scatter_kwargs = {"s": 30, "color": "darkblue", "alpha": 0.8}
+    scatter_kwargs.update(kwargs)
+    data_range = (
+        float(np.min([np.min(y_train), np.min(y_pred_mean)])),
+        float(np.max([np.max(y_train), np.max(y_pred_mean)])),
+    )
+    axis.scatter(y_train, y_pred_mean, **scatter_kwargs)
+    axis.set_xlim(data_range)
+    axis.set_ylim(data_range)
+    axis.plot(data_range, data_range, color="red", linewidth=2, linestyle="--", label="Perfect Prediction")
+    axis.vlines(
+        y_train,
+        quantiles[:, 0],
+        quantiles[:, 1],
+        color="lightblue",
+        linewidth=1,
+        label="95% Credible Intervals",
+    )
+
+    ss_res = float(np.sum(residuals**2))
+    ss_tot = float(np.sum((y_train - np.mean(y_train)) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+    axis.text(0.98, 0.05, f"R^2 = {r_squared:.3f}", transform=axis.transAxes, ha="right", va="bottom")
+    axis.legend(loc="upper left", frameon=False)
+    axis.set(xlabel="Observed Values", ylabel="Predicted Values", title="Predicted vs Observed")
+
+
+def _smooth_line(x_values: np.ndarray, y_values: np.ndarray, frac: float = 0.6) -> tuple[np.ndarray, np.ndarray]:
+    order = np.argsort(x_values)
+    x_sorted = np.asarray(x_values, dtype=float)[order]
+    y_sorted = np.asarray(y_values, dtype=float)[order]
+    window = max(3, int(np.ceil(frac * x_sorted.size)))
+    smoothed = np.empty_like(y_sorted)
+
+    for idx, x_val in enumerate(x_sorted):
+        distances = np.abs(x_sorted - x_val)
+        neighbours = np.argsort(distances)[:window]
+        max_distance = float(np.max(distances[neighbours]))
+        if max_distance == 0:
+            smoothed[idx] = float(np.mean(y_sorted[neighbours]))
+            continue
+
+        scaled = distances[neighbours] / max_distance
+        weights = (1.0 - scaled**3) ** 3
+        design = np.column_stack([np.ones(neighbours.size), x_sorted[neighbours] - x_val])
+        weighted_design = design * weights[:, None]
+        try:
+            coef, *_ = np.linalg.lstsq(weighted_design, y_sorted[neighbours] * weights, rcond=None)
+            smoothed[idx] = coef[0]
+        except np.linalg.LinAlgError:
+            smoothed[idx] = float(np.average(y_sorted[neighbours], weights=weights))
+
+    return x_sorted, smoothed
 
 
 AddiVortes = AddiVortesRegressor

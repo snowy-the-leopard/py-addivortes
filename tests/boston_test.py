@@ -1,4 +1,5 @@
 import time
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -62,3 +63,43 @@ test_rmse = np.sqrt(np.mean((Y_Boston[test_set] - preds) ** 2))
 
 print("Test RMSE:")
 print(test_rmse)
+
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    warnings.warn(
+        "matplotlib is not installed; skipping Boston prediction and diagnostic plots.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
+else:
+    true_values = Y_Boston[test_set]
+
+    # Plot predictions against true values.
+    _, ax = plt.subplots()
+    ax.scatter(true_values, preds, marker="o", color="red")
+    ax.set(
+        xlabel="True Values",
+        ylabel="Predicted Values",
+        title="AddiVortes Predictions vs True Values",
+    )
+    ax.set_xlim(float(np.min(true_values) - 0.1), float(np.max(true_values) + 0.1))
+    ax.set_ylim(float(np.min(preds) - 0.1), float(np.max(preds) + 0.1))
+
+    # Add error lines from posterior quantile predictions.
+    pred_quantiles = model.predict(X_Boston[test_set], kind="quantile")
+    ax.vlines(
+        true_values,
+        pred_quantiles[:, 0],
+        pred_quantiles[:, 1],
+        color="red",
+        linewidth=1.5,
+    )
+
+    # Add the equality line.
+    ax.axline((0, 0), slope=1, color="blue", linewidth=2)
+
+    # AddiVortes diagnostic plots.
+    model.plot(X_Boston[train_set], Y_Boston[train_set], which=(1, 2, 3, 4))
+    plt.show()
