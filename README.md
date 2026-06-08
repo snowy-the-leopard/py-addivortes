@@ -31,7 +31,7 @@ python -m pip install addivortes
 To install the current GitHub version with pip:
 
 ```bash
-python -m pip install "git+https://github.com/johnpaulgosling/AddiVortes.git"
+python -m pip install "git+https://github.com/johnpaulgosling/py-addivortes.git"
 ```
 
 For local development from a source checkout:

@@ -15,13 +15,13 @@ python -m pip install addivortes
 Before the first PyPI release, or to install the latest development version:
 
 ```bash
-python -m pip install "git+https://github.com/johnpaulgosling/AddiVortes.git"
+python -m pip install "git+https://github.com/johnpaulgosling/py-addivortes.git"
 ```
 
 To install a specific branch:
 
 ```bash
-python -m pip install "git+https://github.com/johnpaulgosling/AddiVortes.git@main"
+python -m pip install "git+https://github.com/johnpaulgosling/py-addivortes.git@main"
 ```
 
 ## From a source checkout
@@ -29,8 +29,8 @@ python -m pip install "git+https://github.com/johnpaulgosling/AddiVortes.git@mai
 For local development:
 
 ```bash
-git clone https://github.com/johnpaulgosling/AddiVortes.git
-cd AddiVortes
+git clone https://github.com/johnpaulgosling/py-addivortes.git
+cd py-addivortes
 python -m pip install -e ".[dev]"
 ```
 

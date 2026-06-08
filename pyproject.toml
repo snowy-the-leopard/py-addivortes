@@ -59,10 +59,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/johnpaulgosling/AddiVortes"
-Documentation = "https://johnpaulgosling.github.io/AddiVortes/"
-Repository = "https://github.com/johnpaulgosling/AddiVortes"
-Issues = "https://github.com/johnpaulgosling/AddiVortes/issues"
+Homepage = "https://github.com/johnpaulgosling/py-addivortes"
+Documentation = "https://johnpaulgosling.github.io/py-addivortes/"
+Repository = "https://github.com/johnpaulgosling/py-addivortes"
+Issues = "https://github.com/johnpaulgosling/py-addivortes/issues"
 
 [tool.setuptools]
 packages = ["addivortes"]
