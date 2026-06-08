@@ -2,7 +2,7 @@ name: Python checks
 
 on:
   push:
-    branches: [main, pyAddiVortes]
+    branches: [main, py-addivortes]
   pull_request:
 
 jobs:
