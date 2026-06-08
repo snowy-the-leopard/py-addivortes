@@ -2,13 +2,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from addivortes import AddiVortes, AddiVortesRegressor
+from addivortes import AddiVortes, AddiVortesRegressor, _core
 
 from conftest import fast_model, regression_data
 
 
 def test_import_aliases_are_available():
     assert AddiVortes is AddiVortesRegressor
+
+
+def test_compiled_core_extension_is_importable():
+    assert callable(_core.run_mcmc)
 
 
 def test_numeric_fit_predict_response_and_quantiles():
