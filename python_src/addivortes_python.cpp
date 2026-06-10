@@ -5,9 +5,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 #include <numeric>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -451,6 +454,29 @@ py::array_t<int> make_int_vector(const std::vector<int>& values) {
   return arr;
 }
 
+void render_progress_bar(const std::string& label, int current, int total) {
+  if (total <= 0) {
+    return;
+  }
+
+  constexpr int width = 30;
+  const double fraction = std::clamp(static_cast<double>(current) / static_cast<double>(total), 0.0, 1.0);
+  const int filled = static_cast<int>(std::round(fraction * width));
+  const int percent = static_cast<int>(std::round(fraction * 100.0));
+
+  std::ostringstream out;
+  out << '\r' << label << " [";
+  for (int idx = 0; idx < width; ++idx) {
+    out << (idx < filled ? '#' : '-');
+  }
+  out << "] " << std::setw(3) << percent << "% (" << current << "/" << total << ")";
+  if (current >= total) {
+    out << '\n';
+  }
+
+  std::cerr << out.str() << std::flush;
+}
+
 }  // namespace
 
 py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast> x_scaled_arr,
@@ -552,13 +578,12 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
   double sigma_squared = 1.0;
   std::vector<double> last_tess_pred(n, 0.0);
   int storage_idx = 0;
-  const int progress_step = std::max(1, total_iter / 10);
+  const int progress_step = std::max(1, total_iter / 100);
+  if (verbose) {
+    render_progress_bar("MCMC fit", 0, total_iter);
+  }
 
   for (int iter = 1; iter <= total_iter; ++iter) {
-    if (verbose && (iter % progress_step == 0 || iter == total_iter)) {
-      py::print("  Iteration", iter, "/", total_iter);
-    }
-
     double sum_sq = 0.0;
     for (int obs = 0; obs < n; ++obs) {
       const double residual = y_scaled[obs] - sum_all_tess[obs];
@@ -697,6 +722,10 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
       posterior_dim.append(sample_dim);
       posterior_pred.append(sample_pred);
       ++storage_idx;
+    }
+
+    if (verbose && (iter % progress_step == 0 || iter == total_iter)) {
+      render_progress_bar("MCMC fit", iter, total_iter);
     }
   }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
 from typing import Any
 import warnings
 
@@ -230,30 +231,33 @@ class AddiVortesRegressor:
         rng = np.random.default_rng(self.random_state if random_state is None else random_state)
         prediction_matrix = np.empty((n_obs, n_samples), dtype=float)
 
-        for sample_idx in range(n_samples):
-            sample_pred = np.zeros(n_obs, dtype=float)
-            tess_sample = self.posterior_.tessellations[sample_idx]
-            dim_sample = self.posterior_.dimensions[sample_idx]
-            pred_sample = self.posterior_.predictions[sample_idx]
+        progress_steps = sum(len(tess_sample) for tess_sample in self.posterior_.tessellations)
+        with _ProgressBar("Predict", progress_steps, bool(self.verbose)) as progress:
+            for sample_idx in range(n_samples):
+                sample_pred = np.zeros(n_obs, dtype=float)
+                tess_sample = self.posterior_.tessellations[sample_idx]
+                dim_sample = self.posterior_.dimensions[sample_idx]
+                pred_sample = self.posterior_.predictions[sample_idx]
 
-            for tess, dims, cell_pred in zip(tess_sample, dim_sample, pred_sample, strict=True):
-                indices = _core.cell_indices(
-                    x_scaled,
-                    np.asarray(tess, dtype=float),
-                    np.asarray(dims, dtype=np.int32),
-                    self.metric_red_,
-                    self.member_red_,
-                )
-                sample_pred += np.asarray(cell_pred, dtype=float)[indices]
+                for tess, dims, cell_pred in zip(tess_sample, dim_sample, pred_sample, strict=True):
+                    indices = _core.cell_indices(
+                        x_scaled,
+                        np.asarray(tess, dtype=float),
+                        np.asarray(dims, dtype=np.int32),
+                        self.metric_red_,
+                        self.member_red_,
+                    )
+                    sample_pred += np.asarray(cell_pred, dtype=float)[indices]
+                    progress.advance()
 
-            if kind == "quantile" and interval == "prediction":
-                sample_pred += rng.normal(
-                    loc=0.0,
-                    scale=float(np.sqrt(self.posterior_.sigma[sample_idx])),
-                    size=n_obs,
-                )
+                if kind == "quantile" and interval == "prediction":
+                    sample_pred += rng.normal(
+                        loc=0.0,
+                        scale=float(np.sqrt(self.posterior_.sigma[sample_idx])),
+                        size=n_obs,
+                    )
 
-            prediction_matrix[:, sample_idx] = sample_pred
+                prediction_matrix[:, sample_idx] = sample_pred
 
         if kind == "response":
             return prediction_matrix.mean(axis=1) * self.y_range_ + self.y_centre_
@@ -495,6 +499,53 @@ def _match_choice(value: str, choices: set[str], name: str) -> str:
     if normalized not in choices:
         raise ValueError(f"{name} must be one of {sorted(choices)}.")
     return normalized
+
+
+class _ProgressBar:
+    def __init__(self, label: str, total: int, enabled: bool, *, width: int = 30) -> None:
+        self.label = label
+        self.total = int(total)
+        self.enabled = bool(enabled) and self.total > 0
+        self.width = int(width)
+        self.current = 0
+        self._last_rendered = -1
+        self._update_step = max(1, self.total // 100) if self.total > 0 else 1
+        self._finished = False
+
+    def __enter__(self) -> "_ProgressBar":
+        if self.enabled:
+            self._render(0)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        del exc, traceback
+        if not self.enabled or self._finished:
+            return
+        if exc_type is None:
+            self._render(self.total)
+        else:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+    def advance(self, step: int = 1) -> None:
+        if not self.enabled:
+            return
+        self.current = min(self.total, self.current + int(step))
+        should_render = self.current == self.total or self.current - self._last_rendered >= self._update_step
+        if should_render:
+            self._render(self.current)
+
+    def _render(self, current: int) -> None:
+        self._last_rendered = current
+        fraction = current / self.total
+        filled = int(round(fraction * self.width))
+        bar = "#" * filled + "-" * (self.width - filled)
+        percent = int(round(fraction * 100))
+        sys.stderr.write(f"\r{self.label} [{bar}] {percent:3d}% ({current}/{self.total})")
+        if current >= self.total:
+            sys.stderr.write("\n")
+            self._finished = True
+        sys.stderr.flush()
 
 
 def plot(
