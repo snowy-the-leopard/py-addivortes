@@ -102,11 +102,13 @@ Run the Python test suite with:
 python -m pytest
 ```
 
-Build a wheel locally with:
+Build a source distribution locally with:
 
 ```bash
-python -m build
+python -m build --sdist
 ```
+
+Release wheels are built with cibuildwheel in GitHub Actions.
 
 ## Citation
 
