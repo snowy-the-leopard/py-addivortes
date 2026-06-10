@@ -57,9 +57,10 @@ docs = [
   "mkdocs-material>=9.5"
 ]
 dev = [
-  "build>=1.2",
+  "build>=1.5",
   "cibuildwheel>=3.4.1",
-  "twine>=5",
+  "packaging>=26.2",
+  "twine>=6.2",
   "pytest>=8",
   "matplotlib",
   "mkdocs>=1.6,<2",
