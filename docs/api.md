@@ -31,6 +31,9 @@ AddiVortesRegressor(
 )
 ```
 
+Set `verbose=True` to show terminal progress bars while fitting the MCMC
+sampler and while generating predictions.
+
 ### Main methods
 
 #### `fit(X, y)`

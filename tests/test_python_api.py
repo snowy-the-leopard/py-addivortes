@@ -33,6 +33,22 @@ def test_numeric_fit_predict_response_and_quantiles():
     assert model.summary()["posterior_samples"] == 5
 
 
+def test_verbose_fit_and_predict_emit_progress_bars(capfd):
+    x, y = regression_data()
+
+    model = fast_model(verbose=True).fit(x, y)
+    fit_output = capfd.readouterr()
+
+    assert "MCMC fit" in fit_output.err
+    assert "100%" in fit_output.err
+
+    model.predict(x[:5])
+    predict_output = capfd.readouterr()
+
+    assert "Predict" in predict_output.err
+    assert "100%" in predict_output.err
+
+
 def test_summary_repr_score_and_fit_predict():
     x, y = regression_data(seed=321)
     model = fast_model().fit(x, y)
