@@ -58,7 +58,8 @@ docs = [
 ]
 dev = [
   "build>=1.5",
-  "cibuildwheel>=3.4.1",
+  "cibuildwheel>=2.23.4,<3; python_version < '3.11'",
+  "cibuildwheel>=3.4.1; python_version >= '3.11'",
   "packaging>=26.2",
   "twine>=6.2",
   "pytest>=8",
