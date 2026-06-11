@@ -5,6 +5,7 @@ __pycache__/
 addivortes/*.so
 build/
 dist/
+wheelhouse/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
