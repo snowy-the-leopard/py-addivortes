@@ -25,13 +25,16 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Intended Audience :: Developers",
-  "Operating System :: OS Independent",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: C++",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
   "Topic :: Scientific/Engineering",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Mathematics"
@@ -54,8 +57,10 @@ docs = [
   "mkdocs-material>=9.5"
 ]
 dev = [
-  "build>=1.2",
-  "twine>=5",
+  "build>=1.5",
+  "cibuildwheel>=3.4.1",
+  "packaging>=26.2",
+  "twine>=6.2",
   "pytest>=8",
   "matplotlib",
   "mkdocs>=1.6,<2",
@@ -71,6 +76,11 @@ Issues = "https://github.com/johnpaulgosling/py-addivortes/issues"
 [tool.setuptools]
 packages = ["addivortes"]
 include-package-data = false
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = ["pp*", "*-musllinux_*"]
+test-command = "python -c \"from addivortes import AddiVortesRegressor; print(AddiVortesRegressor)\""
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
