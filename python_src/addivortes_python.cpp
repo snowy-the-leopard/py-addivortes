@@ -58,21 +58,6 @@ double uniform01(std::mt19937_64& rng) {
   return dist(rng);
 }
 
-double log_binomial_pmf(int k, int n, double p) {
-  if (k < 0 || k > n) {
-    return -std::numeric_limits<double>::infinity();
-  }
-  return std::lgamma(n + 1.0) - std::lgamma(k + 1.0) - std::lgamma(n - k + 1.0) +
-         k * std::log(p) + (n - k) * std::log1p(-p);
-}
-
-double log_poisson_pmf(int k, double lambda) {
-  if (k < 0) {
-    return -std::numeric_limits<double>::infinity();
-  }
-  return k * std::log(lambda) - lambda - std::lgamma(k + 1.0);
-}
-
 double euclidean_distance(const std::vector<double>& first,
                           const std::vector<double>& second,
                           int offset,
@@ -205,76 +190,65 @@ void aggregate_residuals(const std::vector<double>& residuals,
   }
 }
 
-double log_acceptance_probability(const std::vector<double>& r_old,
-                                  const std::vector<int>& n_old,
-                                  const std::vector<double>& r_new,
-                                  const std::vector<int>& n_new,
-                                  int d_new,
-                                  int n_centres_new,
-                                  double sigma_squared,
-                                  double sigma_squared_mu,
-                                  double omega,
-                                  double lambda_rate,
-                                  int p,
-                                  const std::string& modification) {
-  double sum_log_old = 0.0;
-  double sum_r_old = 0.0;
-  for (int idx = 0; idx < static_cast<int>(n_old.size()); ++idx) {
-    const double den = n_old[idx] * sigma_squared_mu + sigma_squared;
-    sum_log_old += std::log(den);
-    sum_r_old += (r_old[idx] * r_old[idx]) / den;
+double tessellation_log_likelihood_component(const std::vector<double>& r_cell,
+                                             const std::vector<int>& n_cell,
+                                             double sigma_squared,
+                                             double sigma_squared_mu) {
+  double sum_log = 0.0;
+  double sum_r = 0.0;
+  for (int idx = 0; idx < static_cast<int>(n_cell.size()); ++idx) {
+    const double den = n_cell[idx] * sigma_squared_mu + sigma_squared;
+    sum_log += std::log(den);
+    sum_r += (r_cell[idx] * r_cell[idx]) / den;
   }
+  return -0.5 * sum_log + (sigma_squared_mu / (2.0 * sigma_squared)) * sum_r;
+}
 
-  double sum_log_new = 0.0;
-  double sum_r_new = 0.0;
-  for (int idx = 0; idx < static_cast<int>(n_new.size()); ++idx) {
-    const double den = n_new[idx] * sigma_squared_mu + sigma_squared;
-    sum_log_new += std::log(den);
-    sum_r_new += (r_new[idx] * r_new[idx]) / den;
-  }
-
-  const double log_lik = 0.5 * (sum_log_old - sum_log_new) +
-                         (sigma_squared_mu / (2.0 * sigma_squared)) * (sum_r_new - sum_r_old);
-  const double prob = std::min(1.0 - 1e-10, std::max(0.0, omega / static_cast<double>(p)));
-  double out = log_lik;
+double log_acceptance_components(const std::vector<double>& r_old,
+                                 const std::vector<int>& n_old,
+                                 const std::vector<double>& r_new,
+                                 const std::vector<int>& n_new,
+                                 int d_new,
+                                 int n_centres_new,
+                                 double sigma_squared,
+                                 double sigma_squared_mu,
+                                 double omega,
+                                 double lambda_rate,
+                                 int p,
+                                 const std::string& modification) {
+  const double old_log_lik =
+      tessellation_log_likelihood_component(r_old, n_old, sigma_squared, sigma_squared_mu);
+  const double new_log_lik =
+      tessellation_log_likelihood_component(r_new, n_new, sigma_squared, sigma_squared_mu);
+  double acc = new_log_lik - old_log_lik;
 
   if (modification == "AD") {
-    out += log_binomial_pmf(d_new - 1, p - 1, prob) -
-           log_binomial_pmf(d_new - 2, p - 1, prob) -
-           std::log(static_cast<double>(d_new));
-    if (d_new == 1) {
-      out += std::log(0.5);
-    } else if (d_new == p - 1) {
-      out += std::log(2.0);
+    acc += 2.0 * std::log(static_cast<double>(p - d_new + 1)) -
+           std::log(static_cast<double>(d_new - 1)) - std::log(static_cast<double>(d_new)) +
+           std::log(omega) - std::log(static_cast<double>(p) - omega);
+    if (d_new == 2) {
+      acc -= std::log(2.0);
     }
   } else if (modification == "RD") {
-    out += log_binomial_pmf(d_new - 1, p, prob) -
-           log_binomial_pmf(d_new, p, prob) +
-           std::log(static_cast<double>(d_new + 1));
-    if (d_new == p) {
-      out += std::log(0.5);
-    } else if (d_new == 2) {
-      out += std::log(2.0);
+    acc += std::log(static_cast<double>(d_new + 1)) + std::log(static_cast<double>(d_new)) -
+           2.0 * std::log(static_cast<double>(p - d_new)) + std::log(static_cast<double>(p) - omega) -
+           std::log(omega);
+    if (d_new == p - 1) {
+      acc -= std::log(2.0);
     }
   } else if (modification == "AC") {
-    out += log_poisson_pmf(n_centres_new - 1, lambda_rate) -
-           log_poisson_pmf(n_centres_new - 2, lambda_rate) -
-           std::log(static_cast<double>(n_centres_new)) +
-           0.5 * std::log(sigma_squared);
-    if (n_centres_new == 1) {
-      out += std::log(0.5);
+    acc += std::log(lambda_rate) - std::log(static_cast<double>(n_centres_new)) -
+           std::log(static_cast<double>(n_centres_new - 1)) + 0.5 * std::log(sigma_squared);
+    if (n_centres_new == 2) {
+      acc -= std::log(2.0);
     }
   } else if (modification == "RC") {
-    out += log_poisson_pmf(n_centres_new - 1, lambda_rate) -
-           log_poisson_pmf(n_centres_new, lambda_rate) +
-           std::log(static_cast<double>(n_centres_new + 1)) -
+    acc += std::log(static_cast<double>(n_centres_new + 1)) +
+           std::log(static_cast<double>(n_centres_new)) - std::log(lambda_rate) -
            0.5 * std::log(sigma_squared);
-    if (n_centres_new == 2) {
-      out += std::log(2.0);
-    }
   }
 
-  return out;
+  return acc;
 }
 
 std::vector<double> sample_mu(const std::vector<double>& r_cell,
@@ -293,16 +267,16 @@ std::vector<double> sample_mu(const std::vector<double>& r_cell,
   return out;
 }
 
-ProposalResult propose(const std::vector<double>& tess,
-                       int n_centres,
-                       int d,
-                       const std::vector<int>& dim,
-                       int p,
-                       const std::vector<double>& proposal_sd,
-                       const std::vector<double>& proposal_mu,
-                       const std::vector<int>& metric,
-                       const std::vector<int>& members,
-                       std::mt19937_64& rng) {
+ProposalResult propose_internal(const std::vector<double>& tess,
+                                int n_centres,
+                                int d,
+                                const std::vector<int>& dim,
+                                int p,
+                                const std::vector<double>& proposal_sd,
+                                const std::vector<double>& proposal_mu,
+                                const std::vector<int>& metric,
+                                const std::vector<int>& members,
+                                std::mt19937_64& rng) {
   ProposalResult result;
   result.tess = tess;
   result.n_centres = n_centres;
@@ -312,9 +286,17 @@ ProposalResult propose(const std::vector<double>& tess,
   const double choice = uniform01(rng);
   std::normal_distribution<double> normal(0.0, 1.0);
 
-  auto sample_coordinate = [&](int global_dim) {
+  auto sample_global_coordinate = [&](int global_dim) {
     double value = proposal_mu[global_dim] + normal(rng) * proposal_sd[global_dim];
     if (metric[global_dim] == 1 && is_last_member_column(global_dim, members)) {
+      value = period_shift(value, kPi);
+    }
+    return value;
+  };
+
+  auto sample_local_coordinate = [&](int local_idx) {
+    double value = proposal_mu[local_idx] + normal(rng) * proposal_sd[local_idx];
+    if (metric[local_idx] == 1 && is_last_member_column(local_idx, members)) {
       value = period_shift(value, kPi);
     }
     return value;
@@ -334,7 +316,7 @@ ProposalResult propose(const std::vector<double>& tess,
       for (int col = 0; col < d; ++col) {
         result.tess[row * (d + 1) + col] = tess[row * d + col];
       }
-      result.tess[row * (d + 1) + d] = sample_coordinate(new_dim);
+      result.tess[row * (d + 1) + d] = sample_global_coordinate(new_dim);
     }
   } else if (choice < 0.4 && d > 1) {
     result.modification = "RD";
@@ -362,7 +344,7 @@ ProposalResult propose(const std::vector<double>& tess,
       }
     }
     for (int col = 0; col < d; ++col) {
-      result.tess[n_centres * d + col] = sample_coordinate(dim[col]);
+      result.tess[n_centres * d + col] = sample_local_coordinate(col);
     }
   } else if (choice < 0.8 && n_centres > 1) {
     result.modification = "RC";
@@ -382,7 +364,7 @@ ProposalResult propose(const std::vector<double>& tess,
     std::uniform_int_distribution<int> centre_dist(0, n_centres - 1);
     const int centre = centre_dist(rng);
     for (int col = 0; col < d; ++col) {
-      result.tess[centre * d + col] = sample_coordinate(dim[col]);
+      result.tess[centre * d + col] = sample_local_coordinate(col);
     }
   } else {
     result.modification = "Swap";
@@ -395,7 +377,7 @@ ProposalResult propose(const std::vector<double>& tess,
     } while (in_vector(new_dim, result.dim));
     result.dim[local_dim] = new_dim;
     for (int row = 0; row < n_centres; ++row) {
-      result.tess[row * d + local_dim] = sample_coordinate(new_dim);
+      result.tess[row * d + local_dim] = sample_local_coordinate(local_dim);
     }
   }
 
@@ -574,6 +556,12 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
   py::list posterior_pred;
   std::vector<double> posterior_sigma(num_samples);
   std::vector<double> prediction_matrix(n * num_samples, 0.0);
+  std::vector<int> trace_iteration(total_iter);
+  std::vector<uint8_t> trace_is_burn_in(total_iter);
+  std::vector<double> trace_avg_centres(total_iter);
+  std::vector<double> trace_sd_centres(total_iter);
+  std::vector<double> trace_avg_dims(total_iter);
+  std::vector<double> trace_log_likelihood(total_iter);
 
   double sigma_squared = 1.0;
   std::vector<double> last_tess_pred(n, 0.0);
@@ -610,7 +598,7 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
         residuals[obs] = y_scaled[obs] - sum_all_tess[obs];
       }
 
-      ProposalResult proposal = propose(
+      ProposalResult proposal = propose_internal(
           tess[j],
           tess_n_centres[j],
           tess_dim_count[j],
@@ -664,7 +652,7 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
       const bool has_empty = std::any_of(n_new.begin(), n_new.end(), [](int value) { return value == 0; });
       bool accepted = false;
       if (!has_empty) {
-        const double log_alpha = log_acceptance_probability(
+        const double log_alpha = log_acceptance_components(
             r_old,
             n_old,
             r_new,
@@ -704,6 +692,45 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
       }
     }
 
+    double mean_centres = 0.0;
+    double mean_dims = 0.0;
+    double retained_log_lik_sum = 0.0;
+    for (int j = 0; j < m; ++j) {
+      mean_centres += tess_n_centres[j];
+      mean_dims += tess_dim_count[j];
+
+      std::vector<double> r_retained(tess_n_centres[j], 0.0);
+      std::vector<int> n_retained(tess_n_centres[j], 0);
+      for (int obs = 0; obs < n; ++obs) {
+        const int cell = current_indices[j][obs];
+        const double tess_contribution = pred[j][cell];
+        const double partial_residual = y_scaled[obs] - (sum_all_tess[obs] - tess_contribution);
+        r_retained[cell] += partial_residual;
+        n_retained[cell] += 1;
+      }
+      retained_log_lik_sum += tessellation_log_likelihood_component(
+          r_retained, n_retained, sigma_squared, sigma_squared_mu);
+    }
+    mean_centres /= static_cast<double>(m);
+    mean_dims /= static_cast<double>(m);
+
+    double sd_centres = 0.0;
+    if (m > 1) {
+      for (int j = 0; j < m; ++j) {
+        const double diff = tess_n_centres[j] - mean_centres;
+        sd_centres += diff * diff;
+      }
+      sd_centres = std::sqrt(sd_centres / static_cast<double>(m - 1));
+    }
+
+    const int trace_idx = iter - 1;
+    trace_iteration[trace_idx] = iter;
+    trace_is_burn_in[trace_idx] = iter <= burn_in ? 1 : 0;
+    trace_avg_centres[trace_idx] = mean_centres;
+    trace_sd_centres[trace_idx] = sd_centres;
+    trace_avg_dims[trace_idx] = mean_dims;
+    trace_log_likelihood[trace_idx] = retained_log_lik_sum / static_cast<double>(m);
+
     if (iter > burn_in && (iter - burn_in) % thinning == 0) {
       for (int obs = 0; obs < n; ++obs) {
         prediction_matrix[obs * num_samples + storage_idx] = sum_all_tess[obs];
@@ -737,12 +764,26 @@ py::dict run_mcmc(py::array_t<double, py::array::c_style | py::array::forcecast>
     }
   }
 
+  py::dict trace_stats;
+  trace_stats["iteration"] = make_int_vector(trace_iteration);
+  py::array_t<uint8_t> burn_in_arr(static_cast<py::ssize_t>(trace_is_burn_in.size()));
+  auto burn_in_out = burn_in_arr.mutable_unchecked<1>();
+  for (int idx = 0; idx < total_iter; ++idx) {
+    burn_in_out(idx) = trace_is_burn_in[idx];
+  }
+  trace_stats["is_burn_in"] = burn_in_arr;
+  trace_stats["average_centres_per_tessellation"] = make_vector(trace_avg_centres);
+  trace_stats["sd_centres_per_tessellation"] = make_vector(trace_sd_centres);
+  trace_stats["average_dimensions_per_tessellation"] = make_vector(trace_avg_dims);
+  trace_stats["log_likelihood"] = make_vector(trace_log_likelihood);
+
   py::dict result;
   result["posterior_tess"] = posterior_tess;
   result["posterior_dim"] = posterior_dim;
   result["posterior_pred"] = posterior_pred;
   result["posterior_sigma"] = make_vector(posterior_sigma);
   result["prediction_matrix"] = pred_matrix_arr;
+  result["trace_stats"] = trace_stats;
   return result;
 }
 

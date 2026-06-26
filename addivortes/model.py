@@ -22,12 +22,23 @@ from .preprocessing import (
 
 
 @dataclass(frozen=True)
+class TraceStats:
+    iteration: np.ndarray
+    is_burn_in: np.ndarray
+    average_centres_per_tessellation: np.ndarray
+    sd_centres_per_tessellation: np.ndarray
+    average_dimensions_per_tessellation: np.ndarray
+    log_likelihood: np.ndarray
+
+
+@dataclass(frozen=True)
 class PosteriorSamples:
     tessellations: list[list[np.ndarray]]
     dimensions: list[list[np.ndarray]]
     predictions: list[list[np.ndarray]]
     sigma: np.ndarray
     prediction_matrix: np.ndarray
+    trace_stats: TraceStats | None = None
 
 
 class AddiVortesRegressor:
@@ -160,6 +171,7 @@ class AddiVortesRegressor:
             predictions=result["posterior_pred"],
             sigma=np.asarray(result["posterior_sigma"], dtype=float),
             prediction_matrix=np.asarray(result["prediction_matrix"], dtype=float),
+            trace_stats=_trace_stats_from_result(result["trace_stats"]),
         )
 
         if posterior.prediction_matrix.shape[1] > 0:
@@ -170,6 +182,7 @@ class AddiVortesRegressor:
             in_sample_rmse = float("nan")
 
         self.posterior_ = posterior
+        self.trace_stats_ = posterior.trace_stats
         self.x_centres_ = x_centres
         self.x_ranges_ = x_ranges
         self.y_centre_ = y_centre
@@ -330,6 +343,24 @@ class AddiVortesRegressor:
             show=show,
             **kwargs,
         )
+
+    def traceplots(
+        self,
+        *,
+        ask: bool = False,
+        axes=None,
+        show: bool = False,
+        **kwargs,
+    ):
+        """Create MCMC trace diagnostic plots for a fitted model.
+
+        Displays four trace plots recorded at every MCMC iteration:
+        average centres per tessellation, the standard deviation of centre
+        counts, average active dimensions per tessellation, and the retained-
+        state log-likelihood component. This differs from :meth:`plot` with
+        ``which=3``, which traces posterior thinned samples only.
+        """
+        return traceplots(self, ask=ask, axes=axes, show=show, **kwargs)
 
     def summary(self) -> dict[str, Any]:
         """Return a dictionary of fitted model summary information."""
@@ -612,6 +643,124 @@ def plot(
         plt.show()
 
     return axes_list
+
+
+_TRACEPLOT_SPECS = (
+    ("average_centres_per_tessellation", "Average Number of Tessellation Centres", "MCMC Trace: Average Centres", "purple", 1),
+    ("sd_centres_per_tessellation", "SD of Tessellation Centres", "MCMC Trace: Centre Count SD", "darkorange", 2),
+    ("average_dimensions_per_tessellation", "Average Number of Dimensions", "MCMC Trace: Average Dimensions", "darkblue", 1),
+    ("log_likelihood", "Log Likelihood", "MCMC Trace: Log Likelihood", "darkgreen", 4),
+)
+
+_TRACEPLOT_PROMPTS = (
+    "average centres trace plot",
+    "centre-count standard deviation trace plot",
+    "average dimensions trace plot",
+    "log-likelihood trace plot",
+)
+
+
+def traceplots(
+    model: AddiVortesRegressor,
+    *,
+    ask: bool = False,
+    axes=None,
+    show: bool = False,
+    **kwargs,
+):
+    """Create MCMC trace diagnostic plots for a fitted :class:`AddiVortesRegressor`."""
+
+    if not isinstance(model, AddiVortesRegressor):
+        raise TypeError("model must be an AddiVortesRegressor instance.")
+
+    model._check_is_fitted()
+    if model.trace_stats_ is None:
+        raise RuntimeError(
+            "The fitted model does not contain trace statistics. Refit with a current package version."
+        )
+
+    trace_stats = model.trace_stats_
+    plt = _matplotlib_pyplot()
+    axes_list = _plot_axes(plt, axes, 4)
+
+    for axis, (field, ylab, main, color, legend_digits), prompt in zip(
+        axes_list, _TRACEPLOT_SPECS, _TRACEPLOT_PROMPTS, strict=True
+    ):
+        if ask:
+            input(f"Press [Enter] to see {prompt}: ")
+        values = getattr(trace_stats, field)
+        _plot_burn_in_trace(
+            axis,
+            trace_stats,
+            values,
+            ylab=ylab,
+            main=main,
+            color=color,
+            legend_digits=legend_digits,
+            **kwargs,
+        )
+
+    figure = axes_list[0].figure if axes_list else None
+    if figure is not None and hasattr(figure, "tight_layout"):
+        figure.tight_layout()
+    if show:
+        plt.show()
+
+    return axes_list
+
+
+def _trace_stats_from_result(trace_stats: dict[str, Any]) -> TraceStats:
+    return TraceStats(
+        iteration=np.asarray(trace_stats["iteration"], dtype=int),
+        is_burn_in=np.asarray(trace_stats["is_burn_in"], dtype=bool),
+        average_centres_per_tessellation=np.asarray(
+            trace_stats["average_centres_per_tessellation"], dtype=float
+        ),
+        sd_centres_per_tessellation=np.asarray(trace_stats["sd_centres_per_tessellation"], dtype=float),
+        average_dimensions_per_tessellation=np.asarray(
+            trace_stats["average_dimensions_per_tessellation"], dtype=float
+        ),
+        log_likelihood=np.asarray(trace_stats["log_likelihood"], dtype=float),
+    )
+
+
+def _plot_burn_in_trace(
+    axis,
+    trace_stats: TraceStats,
+    values: np.ndarray,
+    *,
+    ylab: str,
+    main: str,
+    color: str,
+    legend_digits: int = 2,
+    **kwargs,
+) -> None:
+    line_kwargs = {"color": color, "linewidth": 1.5}
+    line_kwargs.update(kwargs)
+    iterations = np.asarray(trace_stats.iteration, dtype=int)
+    axis.plot(iterations, values, **line_kwargs)
+
+    burn_in_mask = np.asarray(trace_stats.is_burn_in, dtype=bool)
+    if np.any(burn_in_mask):
+        burn_in_end = int(iterations[burn_in_mask][-1])
+        axis.axvline(burn_in_end, color="gray", linestyle=":", linewidth=1.5, label="Burn-in end")
+
+    post_burn_in = values[~burn_in_mask]
+    if post_burn_in.size == 0:
+        post_burn_in = values
+
+    post_mean = float(np.mean(post_burn_in))
+    post_sd = float(np.std(post_burn_in, ddof=1)) if post_burn_in.size > 1 else 0.0
+    axis.axhline(post_mean, color="red", linestyle="--", linewidth=1.5)
+    axis.text(
+        0.98,
+        0.95,
+        f"Mean: {post_mean:.{legend_digits}f}\nSD: {post_sd:.{legend_digits}f}",
+        transform=axis.transAxes,
+        ha="right",
+        va="top",
+    )
+    axis.set(xlabel="MCMC Iteration", ylabel=ylab, title=main)
 
 
 _PLOT_NAMES = {

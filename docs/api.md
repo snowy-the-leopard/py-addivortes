@@ -85,6 +85,22 @@ When `sigma_trace` is omitted, the method uses the fitted posterior variance
 samples and plots their square roots as sigma values. The method returns the
 matplotlib axes used for the requested plots.
 
+Note that `which=3` traces the average centre count in **posterior thinned
+samples** after burn-in. For full-chain MCMC trace diagnostics, use
+`traceplots()` instead.
+
+#### `traceplots(*, ask=False, axes=None, show=False, **kwargs)`
+
+Create four MCMC trace plots recorded at every iteration:
+
+- average centres per tessellation,
+- standard deviation of centre counts across tessellations,
+- average active dimensions per tessellation,
+- retained-state log-likelihood component.
+
+This method does not require training data. It uses `trace_stats_`, which is
+populated during `fit`.
+
 #### `summary()`
 
 Return a dictionary with fitted-model summary information, including:
@@ -101,6 +117,7 @@ Return a dictionary with fitted-model summary information, including:
 After `fit`, common fitted attributes include:
 
 - `posterior_`
+- `trace_stats_`
 - `x_centres_`
 - `x_ranges_`
 - `y_centre_`
@@ -124,4 +141,12 @@ The package also exposes a functional plotting wrapper:
 from addivortes import plot
 
 plot(model, X, y, which=(1, 4))
+```
+
+MCMC trace diagnostics are also available without training data:
+
+```python
+from addivortes import traceplots
+
+traceplots(model, show=True)
 ```

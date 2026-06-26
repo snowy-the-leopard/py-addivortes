@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5
+
+- Aligned MCMC proposal and acceptance logic with the updated R package implementation.
+- Added per-iteration `trace_stats` output from the C++ backend during fitting.
+- Added `traceplots()` for burn-in-aware MCMC trace diagnostics.
+
 ## 0.6.1
 
 - Migrated AddiVortes to a Python-only package named `addivortes`.

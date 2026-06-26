@@ -15,20 +15,14 @@ encoding.
   sklearn-style parameter access.
 - Bayesian posterior samples for mean predictions and credible intervals.
 - Prediction intervals that include posterior error variance.
-- Diagnostic plotting for residuals, sigma traces, tessellation complexity, and
-  predicted-vs-observed checks.
+- Diagnostic plotting for residuals, sigma traces, tessellation complexity,
+  MCMC trace diagnostics, and predicted-vs-observed checks.
 - Numeric and categorical covariate preprocessing.
 - C++20 backend for the MCMC sampler and nearest-cell assignment.
 
 ## Installation
 
 The package name is `addivortes` and it targets Python 3.10 or newer.
-
-After a release has been published to PyPI:
-
-```bash
-python -m pip install addivortes
-```
 
 To install the current GitHub version with pip:
 
@@ -68,6 +62,7 @@ Install `addivortes[plot]` to enable matplotlib diagnostics:
 
 ```python
 model.plot(X, y, which=(1, 2, 3, 4), show=True)
+model.traceplots(show=True)
 ```
 
 ## Data frames and categorical covariates

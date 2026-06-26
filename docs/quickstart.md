@@ -80,7 +80,13 @@ After installing the optional plotting dependency with
 
 ```python
 model.plot(X, y, which=(1, 2, 3, 4), show=True)
+model.traceplots(show=True)
 ```
 
 The diagnostics include residuals, posterior sigma trace, tessellation
 complexity, and predicted-vs-observed values with credible intervals.
+
+`traceplots()` draws four MCMC trace diagnostics recorded at every iteration:
+average centres per tessellation, centre-count standard deviation, average
+active dimensions per tessellation, and the retained-state log-likelihood
+component.
