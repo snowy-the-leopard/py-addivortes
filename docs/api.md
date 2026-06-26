@@ -57,6 +57,21 @@ Predict from a fitted model.
 - `interval="prediction"` includes Gaussian observation noise using posterior
   sigma samples.
 
+#### Distance metrics
+
+The `metric` argument controls how covariate distances are computed:
+
+- `"euclidean"` (default): standard Euclidean distance.
+- `"spherical"`: great-circle distance for geographic or other spherical
+  coordinates in radians. See [Modelling spherical data](tutorials/spherical.md).
+
+Pass a list with one value per column to mix metrics, for example
+`metric=["spherical", "spherical", "euclidean"]`.
+
+When covariates lie on multiple spherical surfaces, pass `members` with one
+integer per column indicating surface membership, for example
+`members=[1, 1, 2, 2, 2]`.
+
 #### `fit_predict(X, y, **predict_kwargs)`
 
 Fit the model and return predictions for the training covariates.

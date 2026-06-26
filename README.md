@@ -65,6 +65,18 @@ model.plot(X, y, which=(1, 2, 3, 4), show=True)
 model.traceplots(show=True)
 ```
 
+## Documentation
+
+Full documentation, including tutorials, is published at
+[https://johnpaulgosling.github.io/py-addivortes/](https://johnpaulgosling.github.io/py-addivortes/).
+
+Build the docs locally with:
+
+```bash
+python -m pip install ".[docs]"
+python -m mkdocs serve
+```
+
 ## Data frames and categorical covariates
 
 ```python

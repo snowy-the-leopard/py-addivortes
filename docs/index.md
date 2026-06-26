@@ -18,6 +18,17 @@ through one-hot encoding.
 - C++20 backend for the sampler and nearest-cell assignment.
 - PyPI-oriented packaging with wheel and source distribution checks.
 
+## Tutorials
+
+Step-by-step walkthroughs are available in the documentation:
+
+- [Machine learning with AddiVortes](tutorials/introduction.md): Boston Housing
+  regression with train/test evaluation.
+- [Bayesian regression and prediction](tutorials/prediction.md): synthetic data
+  with known structure and credible intervals.
+- [Modelling spherical data](tutorials/spherical.md): great-circle distance,
+  mixed metrics, and multiple spherical surfaces.
+
 ## Minimal example
 
 ```python
