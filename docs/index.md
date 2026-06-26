@@ -28,6 +28,8 @@ Step-by-step walkthroughs are available in the documentation:
   with known structure and credible intervals.
 - [Modelling spherical data](tutorials/spherical.md): great-circle distance,
   mixed metrics, and multiple spherical surfaces.
+- [Using categorical covariates](tutorials/categorical.md): one-hot encoding,
+  `cat_scaling`, and unseen levels at prediction time.
 
 ## Minimal example
 

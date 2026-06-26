@@ -72,6 +72,13 @@ When covariates lie on multiple spherical surfaces, pass `members` with one
 integer per column indicating surface membership, for example
 `members=[1, 1, 2, 2, 2]`.
 
+#### Categorical covariates
+
+String, object, and pandas `Categorical` columns are one-hot encoded
+automatically. Use `cat_scaling` to control the weight of categorical
+differences relative to continuous covariates. See
+[Using categorical covariates](tutorials/categorical.md).
+
 #### `fit_predict(X, y, **predict_kwargs)`
 
 Fit the model and return predictions for the training covariates.
