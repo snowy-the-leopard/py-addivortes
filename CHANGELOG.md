@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.6
+
+- Added in more tests to check that in-sample and out-of-sample predictions align (especially in the spherical case with permuted variables).
+
 ## 0.6.5
 
 - Aligned MCMC proposal and acceptance logic with the updated R package implementation.
