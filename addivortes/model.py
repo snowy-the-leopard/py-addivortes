@@ -356,8 +356,8 @@ class AddiVortesRegressor:
 
         Displays four trace plots recorded at every MCMC iteration:
         average centres per tessellation, the standard deviation of centre
-        counts, average active dimensions per tessellation, and the retained-
-        state log-likelihood component. This differs from :meth:`plot` with
+        counts, average active dimensions per tessellation, and the posterior
+        sigma values. This differs from :meth:`plot` with
         ``which=3``, which traces posterior thinned samples only.
         """
         return traceplots(self, ask=ask, axes=axes, show=show, **kwargs)
@@ -676,14 +676,14 @@ _TRACEPLOT_SPECS = (
     ("average_centres_per_tessellation", "Average Number of Tessellation Centres", "MCMC Trace: Average Centres", "purple", 1),
     ("sd_centres_per_tessellation", "SD of Tessellation Centres", "MCMC Trace: Centre Count SD", "darkorange", 2),
     ("average_dimensions_per_tessellation", "Average Number of Dimensions", "MCMC Trace: Average Dimensions", "darkblue", 1),
-    ("log_likelihood", "Log Likelihood", "MCMC Trace: Log Likelihood", "darkgreen", 4),
+    ("sigma", "Sigma", "MCMC Trace: Sigma", "darkgreen", 4),
 )
 
 _TRACEPLOT_PROMPTS = (
     "average centres trace plot",
     "centre-count standard deviation trace plot",
     "average dimensions trace plot",
-    "log-likelihood trace plot",
+    "sigma trace plot",
 )
 
 
@@ -715,10 +715,10 @@ def traceplots(
     ):
         if ask:
             input(f"Press [Enter] to see {prompt}: ")
-        values = getattr(trace_stats, field)
+        values = _trace_values_for_plot(model, trace_stats, field)
         _plot_burn_in_trace(
             axis,
-            trace_stats,
+            trace_stats if field != "sigma" else None,
             values,
             ylab=ylab,
             main=main,
@@ -739,7 +739,7 @@ def traceplots(
 _TRACE_DIAGNOSTIC_STATS = (
     ("average_centres_per_tessellation", "Average Number of Tessellation Centres"),
     ("average_dimensions_per_tessellation", "Average Number of Dimensions"),
-    ("log_likelihood", "Log Likelihood"),
+    ("sigma", "Sigma"),
 )
 
 
@@ -800,7 +800,7 @@ def trace_diagnostics(
 
     plot_index = 0
     for stat, label in normalized_stats:
-        values = getattr(trace_stats, stat)
+        values = _trace_values_for_plot(model, trace_stats, stat)
         post_burn_in_values = _post_burn_in_values(trace_stats, values)
 
         # Compute and print effective sample size for this statistic
@@ -824,7 +824,7 @@ def trace_diagnostics(
                 if isinstance(sub_result, tuple) and len(sub_result) == 2:
                     figure, raw_axis = sub_result
                 else:
-                    # Some backends or mocks may return only the axes
+                    # Some backends or mocks maypo return only the axes
                     figure = None
                     raw_axis = sub_result
 
@@ -839,7 +839,7 @@ def trace_diagnostics(
             if plot_type == "trace":
                 _plot_burn_in_trace(
                     axis,
-                    trace_stats,
+                    trace_stats if stat != "sigma" else None,
                     values,
                     ylab=label,
                     main=f"MCMC Trace: {label}",
@@ -901,8 +901,14 @@ def trace_diagnostics(
     return axes_list
 
 
-def _post_burn_in_values(trace_stats: TraceStats, values: np.ndarray) -> np.ndarray:
+def _post_burn_in_values(trace_stats: TraceStats | None, values: np.ndarray) -> np.ndarray:
+    if trace_stats is None:
+        return values
+
     burn_in_mask = np.asarray(trace_stats.is_burn_in, dtype=bool)
+    if values.size != burn_in_mask.size:
+        return values
+
     post_burn_in = values[~burn_in_mask]
     return post_burn_in if post_burn_in.size > 0 else values
 
@@ -1025,9 +1031,17 @@ def _trace_stats_from_result(trace_stats: dict[str, Any]) -> TraceStats:
     )
 
 
+def _trace_values_for_plot(model: AddiVortesRegressor, trace_stats: TraceStats | None, stat: str) -> np.ndarray:
+    if stat == "sigma":
+        return np.sqrt(np.asarray(model.posterior_.sigma, dtype=float))
+    if trace_stats is None:
+        raise ValueError("trace_stats must be provided for non-sigma diagnostics.")
+    return np.asarray(getattr(trace_stats, stat), dtype=float)
+
+
 def _plot_burn_in_trace(
     axis,
-    trace_stats: TraceStats,
+    trace_stats: TraceStats | None,
     values: np.ndarray,
     *,
     ylab: str,
@@ -1038,10 +1052,15 @@ def _plot_burn_in_trace(
 ) -> None:
     line_kwargs = {"color": color, "linewidth": 1.5}
     line_kwargs.update(kwargs)
-    iterations = np.asarray(trace_stats.iteration, dtype=int)
+    if trace_stats is None:
+        iterations = np.arange(1, values.size + 1, dtype=int)
+        burn_in_mask = np.zeros(values.size, dtype=bool)
+    else:
+        iterations = np.asarray(trace_stats.iteration, dtype=int)
+        burn_in_mask = np.asarray(trace_stats.is_burn_in, dtype=bool)
+
     axis.plot(iterations, values, **line_kwargs)
 
-    burn_in_mask = np.asarray(trace_stats.is_burn_in, dtype=bool)
     if np.any(burn_in_mask):
         burn_in_end = int(iterations[burn_in_mask][-1])
         axis.axvline(burn_in_end, color="gray", linestyle=":", linewidth=1.5, label="Burn-in end")
