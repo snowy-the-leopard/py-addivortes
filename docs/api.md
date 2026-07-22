@@ -130,7 +130,7 @@ Create detailed MCMC diagnostics for a fitted model.
 - `plot_types` may include any combination of `"trace"`, `"histogram"`, and
   `"autocorrelation"`.
 - `stats` may include `"average_centres_per_tessellation"`,
-  `"average_dimensions_per_tessellation"`, and `"log_likelihood"`.
+  `"average_dimensions_per_tessellation"`, and `"sigma"`.
 - `lag_k` controls the maximum lag for autocorrelation summaries and defaults to
   250.
 - When `show=True`, the diagnostics display sequentially and prompt before

@@ -58,7 +58,7 @@ This creates three types of plots for each diagnostic statistic:
 
 - `average_centres_per_tessellation`
 - `average_dimensions_per_tessellation`
-- `log_likelihood`
+- `sigma`
 
 These are the same trace statistics used by `model.traceplots()` plus the
 log-likelihood trace, and they help diagnose whether the posterior sampler has
@@ -81,7 +81,7 @@ You can restrict diagnostics to a subset of plot types or statistics:
 ```python
 model.trace_diagnostics(
     plot_types=("autocorrelation",),
-    stats=("log_likelihood",),
+    stats=("sigma",),
     lag_k=250,
     show=True,
 )
